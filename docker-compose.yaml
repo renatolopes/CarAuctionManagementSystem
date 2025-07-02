@@ -1,0 +1,7 @@
+services:
+  webapi:
+    build:
+      context: .
+      dockerfile: src/CarAuctionManagementSystem.Api/Dockerfile
+    ports:
+      - "8090:8090"
