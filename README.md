@@ -5,8 +5,7 @@
 ## Project Overview
 
 This project is a simple car auction management system developed for illustrative purposes.  
-It manages vehicle inventory and the auction process entirely in memory, without a database.  
-Database support can be added easily if required.
+It manages the vehicle inventory and the auction process entirely in memory, without a database.
 
 The system follows Clean Architecture principles and Domain-Driven Design (DDD) concepts to ensure modularity, scalability, and maintainability.
 
@@ -31,6 +30,15 @@ Two main entities represent the core domain:
 - **Auction**: Represents the auction process for a vehicle and contains multiple bids.
 
 These entities are managed by dedicated application services and stored in memory, using repository and specification patterns for separation of concerns and testability.
+
+---
+
+## Design Decisions
+
+- A single `Vehicle` entity was used instead of inheritance. This simplifies the domain model and avoids unnecessary abstraction, as behavior differences between vehicle types are limited to validation rules.
+- Validation is handled using `FluentValidation`, with dedicated validators (`VehicleValidator`, `AuctionValidator`) to keep rules centralized and testable. Additional rules are enforced within application services where needed.
+- The Specification Pattern is used to encapsulate reusable business rules, keeping services clean and rules composable.
+- Data is stored in-memory using repository interfaces, allowing easy replacement with persistent storage in the future without impacting the application or domain layers.
 
 ---
 
@@ -86,8 +94,7 @@ To run the application locally, simply use Docker with "docker-compose up" comma
 ---
 
 ## Build and Test Pipeline
-This project includes a continuous integration (CI) pipeline configured on GitHub Actions.
-The pipeline automatically builds the project and runs all tests whenever a pull request is opened against the main branch, ensuring code quality and preventing regressions.
+The pipeline automatically builds the project and runs all tests on each pull request to the main branch, helping ensure code quality and prevent regressions.
 
 ---
 
