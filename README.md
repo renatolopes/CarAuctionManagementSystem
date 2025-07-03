@@ -1,5 +1,7 @@
 # Car Auction Management System
 
+![Build and Test Status](https://github.com/renatolopes/CarAuctionManagementSystem/actions/workflows/build_and_test.yml/badge.svg)
+
 ## Project Overview
 
 This project is a simple car auction management system developed for illustrative purposes.  
@@ -81,6 +83,11 @@ The project contains both **unit tests** and **integration tests**:
 
 To run the application locally, simply use Docker with "docker-compose up" command.
 
+---
+
+## Build and Test Pipeline
+This project includes a continuous integration (CI) pipeline configured on GitHub Actions.
+The pipeline automatically builds the project and runs all tests whenever a pull request is opened against the main branch, ensuring code quality and preventing regressions.
 
 ---
 
