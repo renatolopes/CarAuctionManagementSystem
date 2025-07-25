@@ -1,18 +1,20 @@
 namespace CarAuctionManagementSystem.Domain;
 
-public class Auction
+using CarAuctionManagementSystem.Domain.Abstractions;
+
+public class Auction : EntityBase
 {
-    public Auction(float startingBid, Vehicle vehicle)
+    public Auction(float startingBid, long vehicleId)
     {
         StartingBid = startingBid;
-        Vehicle = vehicle;
+        VehicleId = vehicleId;
         Active = false;
         Bids = new List<Bid>();
         StartDate = null;
         CloseDate = null;
     }
 
-    public String Id { get; set; } = Guid.NewGuid().ToString();
+    public string Code { get; set; } = Guid.NewGuid().ToString();
 
     public DateTime? StartDate { get; private set; }
 
@@ -20,21 +22,32 @@ public class Auction
 
     public float StartingBid { get; }
 
-    public Vehicle Vehicle { get; }
+    // foreign key
+    public long VehicleId { get; set; }
+
+    public Vehicle Vehicle { get; private set; }
 
     public ICollection<Bid> Bids { get; }
 
-    public bool Active { get; set; }
+    public bool Active { get; set; } = false;
+
+    public float GreatestBid { get; set; }
 
     public void Start()
     {
         Active = true;
-        StartDate ??= DateTime.Now;
+        StartDate = DateTime.UtcNow;
     }
 
     public void Close()
     {
         Active = false;
-        CloseDate ??= DateTime.Now;
+        CloseDate = DateTime.UtcNow;
+    }
+
+    //For unit test
+    public void SetVehicle(Vehicle vehicle)
+    {
+        Vehicle = vehicle;
     }
 }

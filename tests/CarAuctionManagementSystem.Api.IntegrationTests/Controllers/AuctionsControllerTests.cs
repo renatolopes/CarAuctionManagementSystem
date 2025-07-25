@@ -4,6 +4,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AutoFixture;
+using CarAuctionManagementSystem.Api.IntegrationTests.Fixtures;
 using CarAuctionManagementSystem.Application.DTOs.Auctions;
 using CarAuctionManagementSystem.Domain;
 using CarAuctionManagementSystem.Infrastructure.Interfaces;
@@ -12,14 +14,19 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(InfrastructureCollection.Name)]
+public class AuctionsControllerTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly CustomWebApplicationFactory _factory;
+    private readonly Fixture _fixture;
+    private readonly DatabaseFixture _databaseFixture;
 
-
-    public AuctionsControllerTests(WebApplicationFactory<Program> factory)
+    public AuctionsControllerTests(CustomWebApplicationFactory factory, DatabaseFixture databaseFixture)
     {
         _factory = factory;
+        _fixture = new Fixture();
+        _databaseFixture = databaseFixture;
+
         IServiceRepository<Auction> auctionRepository = _factory.Services.GetRequiredService<IServiceRepository<Auction>>();
         IServiceRepository<Vehicle> vehicleRepository = _factory.Services.GetRequiredService<IServiceRepository<Vehicle>>();
 
@@ -32,7 +39,7 @@ public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Progr
     {
         // Arrange
         var client = _factory.CreateClient();
-        var licensePlate = "12-AB-34";
+        var licensePlate = "12-AB-01";
         var auctionRequest = Fixtures.AddAuctionFixture.GetAddAuction(licensePlate: licensePlate);
         var vehicleRequest = Fixtures.AddVehicleFixture.GetAddVehicle(licensePlate: licensePlate);
 
@@ -44,7 +51,7 @@ public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Progr
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
-        content!.Id.Should().NotBeNull();
+        content!.Code.Should().NotBeNull();
         content.StartDate.Should().BeNull();
         content.CloseDate.Should().BeNull();
         content.Active.Should().BeFalse();
@@ -55,10 +62,10 @@ public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Progr
 
     [Fact]
     public async Task PostAuction_VehicleWithExistentAuction_ReturnsBadRequest()
-        {
+    {
         // Arrange
         var client = _factory.CreateClient();
-        var licensePlate = "12-AB-34";
+        var licensePlate = "12-AB-02";
         var auctionRequest = Fixtures.AddAuctionFixture.GetAddAuction(licensePlate: licensePlate);
         var vehicleRequest = Fixtures.AddVehicleFixture.GetAddVehicle(licensePlate: licensePlate);
 
@@ -70,14 +77,14 @@ public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Progr
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        }
+    }
 
     [Fact]
     public async Task GetAuctions_ReturnsSuccessStatusCode()
     {
         // Arrange
         var client = _factory.CreateClient();
-        var licensePlate = "12-AB-34";
+        var licensePlate = "12-AB-03";
         var auctionRequest = Fixtures.AddAuctionFixture.GetAddAuction(licensePlate: licensePlate);
         var vehicleRequest = Fixtures.AddVehicleFixture.GetAddVehicle(licensePlate: licensePlate);
 
@@ -98,7 +105,7 @@ public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Progr
     {
         // Arrange
         var client = _factory.CreateClient();
-        var licensePlate = "12-AB-34";
+        var licensePlate = "12-AB-04";
         var auctionRequest = Fixtures.AddAuctionFixture.GetAddAuction(licensePlate: licensePlate);
         var vehicleRequest = Fixtures.AddVehicleFixture.GetAddVehicle(licensePlate: licensePlate);
 
@@ -108,7 +115,7 @@ public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Progr
         var auctionContent = await auctionResponse.Content.ReadFromJsonAsync<AvailableAuction>(GetJsonSerializerOptions());
 
         // Act
-        var response = await client.PostAsync($"api/v1/auctions/{auctionContent!.Id}/start/", null);
+        var response = await client.PostAsync($"api/v1/auctions/{auctionContent!.Code}/start/", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -116,11 +123,11 @@ public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Progr
 
     [Fact]
     public async Task StartAuction_UnexistentVehicle_ReturnsNotFound()
-        {
+    {
         // Arrange
         var client = _factory.CreateClient();
-        var auctionRequest = Fixtures.AddAuctionFixture.GetAddAuction(licensePlate: "12-AB-34");
-        var vehicleRequest = Fixtures.AddVehicleFixture.GetAddVehicle(licensePlate: "12-CD-34");
+        var auctionRequest = Fixtures.AddAuctionFixture.GetAddAuction(licensePlate: "12-AB-05");
+        var vehicleRequest = Fixtures.AddVehicleFixture.GetAddVehicle(licensePlate: "12-CD-0X");
 
         await client.PostAsJsonAsync("api/v1/vehicles/", vehicleRequest);
         var auctionResponse = await client.PostAsJsonAsync("api/v1/auctions/", auctionRequest);
@@ -128,18 +135,18 @@ public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Progr
         var auctionContent = await auctionResponse.Content.ReadFromJsonAsync<AvailableAuction>(GetJsonSerializerOptions());
 
         // Act
-        var response = await client.PostAsync($"api/v1/auctions/{auctionContent!.Id}/start/", null);
+        var response = await client.PostAsync($"api/v1/auctions/{auctionContent!.Code}/start/", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        }
+    }
 
     [Fact]
     public async Task BidAuction_ReturnsSuccessStatusCode()
     {
         // Arrange
         var client = _factory.CreateClient();
-        var licensePlate = "12-AB-34";
+        var licensePlate = "12-AB-06";
         var auctionRequest = Fixtures.AddAuctionFixture.GetAddAuction(licensePlate: licensePlate);
         var vehicleRequest = Fixtures.AddVehicleFixture.GetAddVehicle(licensePlate: licensePlate);
 
@@ -147,7 +154,7 @@ public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Progr
         var auctionResponse = await client.PostAsJsonAsync("api/v1/auctions/", auctionRequest);
 
         var auctionContent = await auctionResponse.Content.ReadFromJsonAsync<AvailableAuction>(GetJsonSerializerOptions());
-        var auctionId = auctionContent!.Id;
+        var auctionId = auctionContent!.Code;
 
         var bidRequest = Fixtures.AddBidFixture.GetAddBid(auctionId);
         await client.PostAsync($"api/v1/auctions/{auctionId}/start/", null);
@@ -164,7 +171,7 @@ public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Progr
     {
         // Arrange
         var client = _factory.CreateClient();
-        var licensePlate = "12-AB-34";
+        var licensePlate = "12-AB-07";
         var auctionRequest = Fixtures.AddAuctionFixture.GetAddAuction(licensePlate: licensePlate);
         var vehicleRequest = Fixtures.AddVehicleFixture.GetAddVehicle(licensePlate: licensePlate);
 
@@ -172,10 +179,10 @@ public class AuctionsControllerTests : IClassFixture<WebApplicationFactory<Progr
         var auctionResponse = await client.PostAsJsonAsync("api/v1/auctions/", auctionRequest);
 
         var auctionContent = await auctionResponse.Content.ReadFromJsonAsync<AvailableAuction>(GetJsonSerializerOptions());
-        await client.PostAsync($"api/v1/auctions/{auctionContent!.Id}/start/", null);
+        await client.PostAsync($"api/v1/auctions/{auctionContent!.Code}/start/", null);
 
         // Act
-        var response = await client.PostAsync($"api/v1/auctions/{auctionContent!.Id}/close/", null);
+        var response = await client.PostAsync($"api/v1/auctions/{auctionContent!.Code}/close/", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);

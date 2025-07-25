@@ -16,7 +16,7 @@ public static class AuctionMappers
             auction.Vehicle.LicensePlate);
 
         return new AvailableAuction(
-            auction.Id,
+            auction.Code,
             availableVehicle,
             auction.StartDate,
             auction.CloseDate,

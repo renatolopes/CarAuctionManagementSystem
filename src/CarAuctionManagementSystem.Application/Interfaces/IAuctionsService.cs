@@ -6,13 +6,13 @@ using FluentResults;
 
 public interface IAuctionsService
 {
-    public Result<AvailableAuction> Add(AddAuctionRequest auction);
+    public Task<Result<AvailableAuction>> AddAsync(AddAuctionRequest auction, CancellationToken cancellationToken);
 
-    public IEnumerable<AvailableAuction> GetAllAuctions();
+    public Task<IEnumerable<AvailableAuction>> GetAllAuctionsAsync(CancellationToken cancellationToken);
 
-    public Result Start(string auctionId);
+    public Task<Result> StartAsync(string auctionId, CancellationToken cancellationToken);
 
-    public Result Close(string auctionId);
+    public Task<Result> CloseAsync(string auctionId, CancellationToken cancellationToken);
 
-    public Result Bid(string auctionId, AddBidRequest bid);
+    public Task<Result> BidAsync(string auctionId, AddBidRequest bid, CancellationToken cancellationToken);
 }

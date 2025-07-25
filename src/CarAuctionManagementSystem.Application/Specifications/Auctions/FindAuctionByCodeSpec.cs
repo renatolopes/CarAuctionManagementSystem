@@ -3,5 +3,5 @@ namespace CarAuctionManagementSystem.Application.Specifications.Auctions;
 using CarAuctionManagementSystem.Application.Abstractions;
 using CarAuctionManagementSystem.Domain;
 
-public class FindAuctionByVehicleLicensePlate(string licensePlate)
-    : BaseSpecification<Auction>(x => x.Vehicle.LicensePlate == licensePlate);
+public class FindAuctionByCodeSpec(string auctionCode)
+    : BaseSpecification<Auction>(x => x.Code == auctionCode);

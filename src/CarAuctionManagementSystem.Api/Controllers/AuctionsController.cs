@@ -1,5 +1,6 @@
 namespace CarAuctionManagementSystem.Api.Controllers;
 
+using System.Threading.Tasks;
 using CarAuctionManagementSystem.Application.DTOs.Auctions;
 using CarAuctionManagementSystem.Application.DTOs.Bids;
 using CarAuctionManagementSystem.Application.Interfaces;
@@ -19,9 +20,9 @@ public class AuctionsController : ControllerBase
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(object))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(object))]
-    public IActionResult Add([FromBody] AddAuctionRequest request)
+    public async Task<IActionResult> AddAsync([FromBody] AddAuctionRequest request, CancellationToken cancellationToken)
     {
-        var result = _auctionsService.Add(request);
+        var result = await _auctionsService.AddAsync(request, cancellationToken);
 
         if (result.IsSuccess)
         {
@@ -33,9 +34,9 @@ public class AuctionsController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(object))]
-    public IActionResult Get()
+    public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)
     {
-        var result = _auctionsService.GetAllAuctions();
+        var result = await _auctionsService.GetAllAuctionsAsync(cancellationToken);
 
         return Ok(result);
     }
@@ -43,9 +44,9 @@ public class AuctionsController : ControllerBase
     [HttpPost("{auctionId}/start")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(object))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(object))]
-    public IActionResult Start(string auctionId)
+    public async Task<ActionResult> StartAsync(string auctionId, CancellationToken cancellationToken)
     {
-        var result = _auctionsService.Start(auctionId);
+        var result = await _auctionsService.StartAsync(auctionId, cancellationToken);
 
         if (result.IsSuccess)
         {
@@ -58,9 +59,9 @@ public class AuctionsController : ControllerBase
     [HttpPost("{auctionId}/close")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(object))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(object))]
-    public IActionResult Close(string auctionId)
+    public async Task<IActionResult> CloseAsync(string auctionId, CancellationToken cancellationToken)
     {
-        var result = _auctionsService.Close(auctionId);
+        var result = await _auctionsService.CloseAsync(auctionId, cancellationToken);
 
         if (result.IsSuccess)
         {
@@ -73,9 +74,9 @@ public class AuctionsController : ControllerBase
     [HttpPost("{auctionId}/bid")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(object))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(object))]
-    public IActionResult Bid(string auctionId, [FromBody] AddBidRequest request)
+    public async Task<IActionResult> BidAsync(string auctionId, [FromBody] AddBidRequest request, CancellationToken cancellationToken)
     {
-        var result = _auctionsService.Bid(auctionId, request);
+        var result = await _auctionsService.BidAsync(auctionId, request, cancellationToken);
 
         if (result.IsSuccess)
         {

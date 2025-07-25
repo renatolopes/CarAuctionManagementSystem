@@ -26,7 +26,7 @@ RUN dotnet publish "CarAuctionManagementSystem.Api.csproj" -c $BUILD_CONFIGURATI
 
 FROM base AS final
 ENV ASPNETCORE_URLS=http://0.0.0.0:8090;
-ENV DOTNET_ENVIRONMENT=Development
+ENV DOTNET_ENVIRONMENT=Release
 
 WORKDIR /app
 

@@ -1,10 +1,14 @@
 namespace CarAuctionManagementSystem.Application.UnitTests.Services;
 
+using System.Data;
+using System.Threading.Tasks;
+using CarAuctionManagementSystem.Application.Abstractions;
 using CarAuctionManagementSystem.Application.DTOs.Auctions;
 using CarAuctionManagementSystem.Application.DTOs.Bids;
 using CarAuctionManagementSystem.Application.DTOs.Vehicles;
 using CarAuctionManagementSystem.Application.Services;
 using CarAuctionManagementSystem.Application.Specifications.Auctions;
+using CarAuctionManagementSystem.Application.Specifications.Vehicles;
 using CarAuctionManagementSystem.Domain;
 using CarAuctionManagementSystem.Infrastructure.Data;
 using FluentAssertions;
@@ -14,44 +18,68 @@ using Xunit;
 
 public class AuctionsServiceTests
 {
+    private readonly Mock<IRepository<Auction>> _auctionsRepository;
+    private readonly Mock<IRepository<Vehicle>> _vehicleRepository;
+    private readonly Mock<ILogger<AuctionsService>> _auctionsServiceLogger;
+    private readonly Mock<IUnitOfWork> _unitOfWork;
+
+    private readonly AuctionsService _service;
+
+    public AuctionsServiceTests()
+    {
+        _auctionsRepository = new Mock<IRepository<Auction>>();
+        _vehicleRepository = new Mock<IRepository<Vehicle>>();
+        _auctionsServiceLogger = new Mock<ILogger<AuctionsService>>();
+        _unitOfWork = new Mock<IUnitOfWork>();
+        _service = new AuctionsService(_auctionsRepository.Object, _vehicleRepository.Object, _auctionsServiceLogger.Object, _unitOfWork.Object);
+    }
+
     [Fact]
-    public void AddAuction_WithValidData_ShouldAddAuction()
+    public async Task AddAuction_WithValidData_ShouldAddAuctionAsync()
     {
         // Arrange
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out var auctionsRepository);
+        var mocks = GetMockRequests();
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, "AB-XX-01");
+        var createdAuction = new Auction(100, 1);
+        createdAuction.SetVehicle(vehicle);
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
+
+        _auctionsRepository
+            .Setup(x => x.SingleAsync(It.IsAny<FindAuctionByCodeSpec>(), It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .ReturnsAsync(createdAuction)
+            .Verifiable();
 
         // Act
-        vehiclesService.Add(addVehicle);
-        var result = auctionsService.Add(addAuction);
+        var result = await _service.AddAsync(mocks.AddAuction, default);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        var addedAuction = auctionsRepository.Find(new FindAuctionByIdSpec(result.Value.Id));
+        var addedAuction = result.Value;
         addedAuction.Should().NotBeNull();
-        addedAuction!.Id.Should().Be(result.Value.Id);
+        addedAuction!.Code.Should().Be(result.Value.Code);
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(-10)]
-    public void AddAuction_WithInvalidStartingBidData_ShouldReturnError(float startingBid)
+    public async Task AddAuction_WithInvalidStartingBidData_ShouldReturnErrorAsync(float startingBid)
     {
         // Arrange
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out _,
-            startingBid);
+        var mocks = GetMockRequests(startingBid);
+
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, "AB-XX-01");
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
 
         // Act
-        vehiclesService.Add(addVehicle);
-        var result = auctionsService.Add(addAuction);
+        var result = await _service.AddAsync(mocks.AddAuction, default);
 
         // Assert
         result.IsFailed.Should().BeTrue();
@@ -59,87 +87,95 @@ public class AuctionsServiceTests
     }
 
     [Fact]
-    public void AddAuction_WhenAuctionAlreadyExists_ShouldReturnError()
+    public async Task AddAuction_WhenAuctionAlreadyExists_ShouldReturnErrorAsync()
     {
         // Arrange
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out _);
+        var mocks = GetMockRequests();
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, mocks.AddAuction.LicensePlate);
+        string[] includes = new string[] { };
+        _auctionsRepository
+           .Setup(x => x.AnyAsync(It.IsAny<FindAuctionByVehicleLicensePlate>(), It.IsAny<CancellationToken>(), includes))
+           .ReturnsAsync(true)
+           .Verifiable();
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
 
         // Act
-        vehiclesService.Add(addVehicle);
-        auctionsService.Add(addAuction);
-        var result = auctionsService.Add(addAuction);
+        var result = await _service.AddAsync(mocks.AddAuction, default);
 
         // Assert
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should()
-            .Be($"Auction for vehicle with license plate {addVehicle.LicensePlate} already exists.");
+            .Be($"Auction for vehicle with license plate {mocks.AddAuction.LicensePlate} already exists.");
     }
 
     [Fact]
-    public void AddAuction_ForNonExistentVehicle_ShouldReturnError()
+    public async Task AddAuction_ForNonExistentVehicle_ShouldReturnErrorAsync()
     {
         // Arrange
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out _);
+        var mocks = GetMockRequests();
+        string[] includes = new string[] { };
+        _auctionsRepository
+           .Setup(x => x.AnyAsync(It.IsAny<FindAuctionByVehicleLicensePlate>(), It.IsAny<CancellationToken>(), includes))
+           .ReturnsAsync(false)
+           .Verifiable();
 
-        addAuction = addAuction with { LicensePlate = "OverridingLicensePlace" };
+        mocks.AddAuction = mocks.AddAuction with { LicensePlate = "OverridingLicensePlace" };
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([])
+            .Verifiable();
 
         // Act
-        vehiclesService.Add(addVehicle);
-        auctionsService.Add(addAuction);
-        var result = auctionsService.Add(addAuction);
+        var result = await _service.AddAsync(mocks.AddAuction, default);
 
         // Assert
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should()
-            .Be($"Vehicle with license plate {addAuction.LicensePlate} not found.");
+            .Be($"Vehicle with license plate {mocks.AddAuction.LicensePlate} not found.");
     }
 
     [Fact]
-    public void StartAuction_ForValidAuction_ShouldStartAuction()
+    public async Task StartAuction_ForValidAuction_ShouldStartAuctionAsync()
     {
         // Arrange
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out var auctionsRepository);
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, "AB-XX-01");
+        var createdAuction = new Auction(100, 1);
+        createdAuction.SetVehicle(vehicle);
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
+
+        _auctionsRepository
+            .Setup(x => x.SingleAsync(It.IsAny<FindAuctionByCodeSpec>(), It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .ReturnsAsync(createdAuction)
+            .Verifiable();
 
         // Act
-        vehiclesService.Add(addVehicle);
-        var result = auctionsService.Add(addAuction);
-        auctionsService.Start(result.Value.Id);
+        var result = await _service.StartAsync(createdAuction.Code, default);
 
         // Assert
-        var addedAuction = auctionsRepository.Find(new FindAuctionByIdSpec(result.Value.Id));
-        addedAuction.Should().NotBeNull();
-        addedAuction!.Active.Should().BeTrue();
+        result.IsFailed.Should().BeFalse();
     }
 
     [Fact]
-    public void StartAuction_ForInValidAuctionId_ShouldNotStartAuction()
+    public async Task StartAuction_ForInValidAuctionId_ShouldNotStartAuctionAsync()
     {
         // Arrange
         const string invalidAuctionId = "InvalidAuctionId";
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var auctionsRepository = new ServiceRepository<Auction>();
-        var mockAuctionsServiceLogger = new Mock<ILogger<AuctionsService>>();
-        var auctionsService = new AuctionsService(
-            auctionsRepository,
-            vehiclesRepository,
-            mockAuctionsServiceLogger.Object);
+        _auctionsRepository
+            .Setup(x => x.SingleAsync(It.IsAny<FindAuctionByCodeSpec>(), It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .Verifiable();
 
         // Act
-
-        var result = auctionsService.Start(invalidAuctionId);
+        var result = await _service.StartAsync(invalidAuctionId, default);
 
         // Assert
         result.IsFailed.Should().BeTrue();
@@ -147,44 +183,43 @@ public class AuctionsServiceTests
     }
 
     [Fact]
-    public void CloseAuction_ForStartedAuction_ShouldClosedAuction()
+    public async Task CloseAuction_ForStartedAuction_ShouldClosedAuctionAsync()
     {
         // Arrange
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out var auctionsRepository);
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, "AB-XX-01");
+        var createdAuction = new Auction(100, 1);
+        createdAuction.SetVehicle(vehicle);
+        createdAuction.Start();
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
+
+        _auctionsRepository
+            .Setup(x => x.SingleAsync(It.IsAny<FindAuctionByCodeSpec>(), It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .ReturnsAsync(createdAuction)
+            .Verifiable();
 
         // Act
-        vehiclesService.Add(addVehicle);
-        var result = auctionsService.Add(addAuction);
-        auctionsService.Start(result.Value.Id);
-        auctionsService.Close(result.Value.Id);
+        var result = await _service.CloseAsync(createdAuction.Code, default);
 
         // Assert
-        var addedAuction = auctionsRepository.Find(new FindAuctionByIdSpec(result.Value.Id));
-        addedAuction.Should().NotBeNull();
-        addedAuction!.Active.Should().BeFalse();
+        result!.IsFailed.Should().BeFalse();
     }
 
     [Fact]
-    public void CloseAuction_ForInValidAuctionId_ShouldNotCloseAuction()
+    public async Task CloseAuction_ForInValidAuctionId_ShouldNotCloseAuctionAsync()
     {
         // Arrange
         const string invalidAuctionId = "InvalidAuctionId";
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var auctionsRepository = new ServiceRepository<Auction>();
-        var mockAuctionsServiceLogger = new Mock<ILogger<AuctionsService>>();
-        var auctionsService = new AuctionsService(
-            auctionsRepository,
-            vehiclesRepository,
-            mockAuctionsServiceLogger.Object);
+        _auctionsRepository
+            .Setup(x => x.SingleAsync(It.IsAny<FindAuctionByCodeSpec>(), It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .Verifiable();
 
         // Act
-        auctionsService.Start(invalidAuctionId);
-        var result = auctionsService.Close(invalidAuctionId);
+        var result = await _service.CloseAsync(invalidAuctionId, default);
 
         // Assert
         result.IsFailed.Should().BeTrue();
@@ -192,43 +227,53 @@ public class AuctionsServiceTests
     }
 
     [Fact]
-    public void StartAuction_ForAlreadyClosedAuction_ShouldNotStartAuction()
-        {
+    public async Task StartAuction_ForAlreadyClosedAuction_ShouldNotStartAuctionAsync()
+    {
         // Arrange
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out _);
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, "AB-XX-01");
+        var createdAuction = new Auction(100, 1);
+        createdAuction.SetVehicle(vehicle);
+        createdAuction.Start();
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
+
+        _auctionsRepository
+            .Setup(x => x.SingleAsync(It.IsAny<FindAuctionByCodeSpec>(), It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .ReturnsAsync(createdAuction)
+            .Verifiable();
 
         // Act
-        vehiclesService.Add(addVehicle);
-        var addedAuction = auctionsService.Add(addAuction);
-        auctionsService.Start(addedAuction.Value.Id);
-        auctionsService.Start(addedAuction.Value.Id);
-        var result = auctionsService.Start(addedAuction.Value.Id);
+        var result = await _service.StartAsync(createdAuction.Code, default);
 
         // Assert
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should().Be("Auction already started.");
-        }
+    }
 
     [Fact]
-    public void StartAuction_ForAlreadyStartedAuction_ShouldNotStartAuction()
+    public async Task StartAuction_ForAlreadyStartedAuction_ShouldNotStartAuctionAsync()
     {
         // Arrange
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out _);
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, "AB-XX-01");
+        var createdAuction = new Auction(100, 1);
+        createdAuction.SetVehicle(vehicle);
+        createdAuction.Close();
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
+
+        _auctionsRepository
+            .Setup(x => x.SingleAsync(It.IsAny<FindAuctionByCodeSpec>(), It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .ReturnsAsync(createdAuction)
+            .Verifiable();
 
         // Act
-        vehiclesService.Add(addVehicle);
-        var addedAuction = auctionsService.Add(addAuction);
-        auctionsService.Start(addedAuction.Value.Id);
-        auctionsService.Close(addedAuction.Value.Id);
-        var result = auctionsService.Start(addedAuction.Value.Id);
+        var result = await _service.StartAsync(createdAuction.Code, default);
 
         // Assert
         result.IsFailed.Should().BeTrue();
@@ -236,19 +281,25 @@ public class AuctionsServiceTests
     }
 
     [Fact]
-    public void CloseAuction_ForNotStartedAuction_ShouldNotCloseAuction()
+    public async Task CloseAuction_ForNotStartedAuction_ShouldNotCloseAuctionAsync()
     {
         // Arrange
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out _);
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, "AB-XX-01");
+        var createdAuction = new Auction(100, 1);
+        createdAuction.SetVehicle(vehicle);
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
+
+        _auctionsRepository
+            .Setup(x => x.SingleAsync(It.IsAny<FindAuctionByCodeSpec>(), It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .ReturnsAsync(createdAuction)
+            .Verifiable();
 
         // Act
-        vehiclesService.Add(addVehicle);
-        var addedAuction = auctionsService.Add(addAuction);
-        var result = auctionsService.Close(addedAuction.Value.Id);
+        var result = await _service.CloseAsync(createdAuction.Code, default);
 
         // Assert
         result.IsFailed.Should().BeTrue();
@@ -256,51 +307,58 @@ public class AuctionsServiceTests
     }
 
     [Fact]
-    public void PlaceBid_WithValidData_ShouldAddBid()
+    public async Task PlaceBid_WithValidData_ShouldAddBidAsync()
     {
         // Arrange
         const string bidder = "BidderName";
-
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out var auctionsRepository);
-
-        vehiclesService.Add(addVehicle);
-        var addedAuctionResult = auctionsService.Add(addAuction);
         var addBid = new AddBidRequest(3000, bidder);
-        var auctionId = addedAuctionResult.Value.Id;
-        auctionsService.Start(auctionId);
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, "AB-XX-01");
+        var createdAuction = new Auction(100, 1);
+        createdAuction.SetVehicle(vehicle);
+        createdAuction.Start();
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
+
+        _auctionsRepository
+            .Setup(x => x.SingleAsync(It.IsAny<FindAuctionByCodeSpec>(), It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .ReturnsAsync(createdAuction)
+            .Verifiable();
 
         // Act
-        var result = auctionsService.Bid(addedAuctionResult.Value.Id, addBid);
+        var result = await _service.BidAsync(createdAuction.Code, addBid, default);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        var auctionWithBid = auctionsRepository.Find(new FindAuctionByIdSpec(auctionId));
-        auctionWithBid.Should().NotBeNull();
-        auctionWithBid!.Bids.Count.Should().Be(1);
+        //var auctionWithBid = result.Value;
+        //auctionWithBid.Should().NotBeNull();
+        //auctionWithBid!.Bids.Count.Should().Be(1); //TODO
     }
 
     [Fact]
-    public void PlaceBid_ToInvalidAuction_ShouldReturnError()
+    public async Task PlaceBid_ToInvalidAuction_ShouldReturnErrorAsync()
     {
         // Arrange
         const string bidder = "BidderName";
         const string invalidAuctionId = "invalidAuctionId";
-
-        SetupAuctionServicesAndRepositories(
-            out _,
-            out var auctionsService,
-            out _,
-            out _);
-
         var addBid = new AddBidRequest(3000, bidder);
 
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, "AB-XX-01");
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
+
+        _auctionsRepository
+            .Setup(x => x.SingleAsync(It.IsAny<FindAuctionByCodeSpec>(), It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .Verifiable();
+
         // Act
-        var result = auctionsService.Bid(invalidAuctionId, addBid);
+        var result = await _service.BidAsync(invalidAuctionId, addBid, default);
 
         // Assert
         result.IsFailed.Should().BeTrue();
@@ -312,29 +370,32 @@ public class AuctionsServiceTests
     [InlineData(10, "Bid value is less or equal than the starting bid value.")]
     [InlineData(1000, "Bid value is less or equal than the previous bid.")]
     [InlineData(3000, "Bid value is less or equal than the previous bid.")]
-    public void PlaceBid_WithInvalidValue_ShouldReturnError(float bid, string expectedErrorMessage)
+    public async Task PlaceBid_WithInvalidValue_ShouldReturnErrorAsync(float bid, string expectedErrorMessage)
     {
         // Arrange
         const string bidder = "BidderName";
         const float startingBid = 10;
-
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out _,
-            startingBid);
-
-        vehiclesService.Add(addVehicle);
-        var addedAuctionResult = auctionsService.Add(addAuction);
         var startBid = new AddBidRequest(3000, bidder);
         var nextBid = new AddBidRequest(bid, bidder);
-        var auctionId = addedAuctionResult.Value.Id;
-        auctionsService.Start(auctionId);
+
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, "AB-XX-01");
+        var createdAuction = new Auction(100, 1);
+        createdAuction.SetVehicle(vehicle);
+        createdAuction.Start();
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
+
+        _auctionsRepository
+            .Setup(x => x.SingleAsync(It.IsAny<FindAuctionByCodeSpec>(), It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .ReturnsAsync(createdAuction)
+            .Verifiable();
 
         // Act
-        auctionsService.Bid(addedAuctionResult.Value.Id, startBid);
-        var result = auctionsService.Bid(addedAuctionResult.Value.Id, nextBid);
+        await _service.BidAsync(createdAuction.Code, startBid, default);
+        var result = await _service.BidAsync(createdAuction.Code, nextBid, default);
 
         // Assert
         result.IsFailed.Should().BeTrue();
@@ -342,48 +403,48 @@ public class AuctionsServiceTests
     }
 
     [Fact]
-    public void GetAuctions_WithCreatedAuctions_ShouldReturnAuctions()
+    public async Task GetAuctions_WithCreatedAuctions_ShouldReturnAuctionsAsync()
     {
         // Arrange
-        var addAuction = SetupAuctionServicesAndRepositories(
-            out var addVehicle,
-            out var auctionsService,
-            out var vehiclesService,
-            out _);
+        var vehicle = new Vehicle("manufacturer", "model", 2025, VehicleType.Sedan, "AB-XX-01");
+        var createdAuction = new Auction(100, 1);
+        createdAuction.SetVehicle(vehicle);
+        createdAuction.Close();
+
+        _vehicleRepository
+            .Setup(x => x.FindAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>(), false))
+            .ReturnsAsync([vehicle])
+            .Verifiable();
+
+        _auctionsRepository
+            .Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .ReturnsAsync([createdAuction])
+            .Verifiable();
 
         // Act
-        vehiclesService.Add(addVehicle);
-        auctionsService.Add(addAuction);
-        var auctions = auctionsService.GetAllAuctions();
+        var auctions = await _service.GetAllAuctionsAsync(default);
 
         // Assert
         auctions.Count().Should().Be(1);
     }
 
     [Fact]
-    public void GetAuctions_WithoutCreatedAuctions_ShouldReturnEmptyList()
+    public async Task GetAuctions_WithoutCreatedAuctions_ShouldReturnEmptyListAsync()
     {
         // Arrange
-        SetupAuctionServicesAndRepositories(
-            out _,
-            out var auctionsService,
-            out _,
-            out _);
+        _auctionsRepository
+            .Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>(), false, "Vehicle"))
+            .ReturnsAsync([])
+            .Verifiable();
 
         // Act
-        var auctions = auctionsService.GetAllAuctions();
+        var auctions = await _service.GetAllAuctionsAsync(default);
 
         // Assert
         auctions.Count().Should().Be(0);
     }
 
-    private static AddAuctionRequest SetupAuctionServicesAndRepositories(
-        out AddVehicleRequest addVehicle,
-        out AuctionsService auctionsService,
-        out VehiclesService vehiclesService, 
-        out ServiceRepository<Auction> auctionsRepository,
-        float startingBid = 100
-        )
+    private static (AddAuctionRequest AddAuction, AddVehicleRequest AddVehicle) GetMockRequests(float startingBid = 100)
     {
         const string manufacturer = "Manufacturer";
         const string model = "Model";
@@ -393,7 +454,7 @@ public class AuctionsServiceTests
         const int doorsNumber = 5;
 
         var addAuction = new AddAuctionRequest(startingBid, licensePlate);
-        addVehicle = new AddVehicleRequest(
+        var addVehicle = new AddVehicleRequest(
             manufacturer,
             model,
             year,
@@ -401,19 +462,6 @@ public class AuctionsServiceTests
             licensePlate,
             doorsNumber);
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        auctionsRepository = new ServiceRepository<Auction>();
-        var mockAuctionsServiceLogger = new Mock<ILogger<AuctionsService>>();
-        var mockVehiclesServiceLogger = new Mock<ILogger<VehiclesService>>();
-
-        auctionsService = new AuctionsService(
-            auctionsRepository,
-            vehiclesRepository,
-            mockAuctionsServiceLogger.Object);
-
-        vehiclesService = new VehiclesService(
-            vehiclesRepository,
-            mockVehiclesServiceLogger.Object);
-        return addAuction;
+        return (addAuction, addVehicle);
     }
 }

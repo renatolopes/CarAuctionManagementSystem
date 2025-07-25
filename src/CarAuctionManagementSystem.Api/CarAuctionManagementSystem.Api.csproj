@@ -10,6 +10,7 @@
     <ItemGroup>
       <ProjectReference Include="..\CarAuctionManagementSystem.Application\CarAuctionManagementSystem.Application.csproj" />
       <ProjectReference Include="..\CarAuctionManagementSystem.Infrastructure\CarAuctionManagementSystem.Infrastructure.csproj" />
+      <ProjectReference Include="..\CarAuctionManagementSystem.Persistence\CarAuctionManagementSystem.Persistence.csproj" />
     </ItemGroup>
 
     <ItemGroup>

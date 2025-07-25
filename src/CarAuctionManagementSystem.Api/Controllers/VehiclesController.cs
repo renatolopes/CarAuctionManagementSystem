@@ -1,5 +1,6 @@
 namespace CarAuctionManagementSystem.Api.Controllers;
 
+using System.Threading.Tasks;
 using CarAuctionManagementSystem.Application.DTOs.Vehicles;
 using CarAuctionManagementSystem.Application.Interfaces;
 using CarAuctionManagementSystem.Domain;
@@ -19,9 +20,9 @@ public class VehiclesController : ControllerBase
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(object))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(object))]
-    public IActionResult Add([FromBody] AddVehicleRequest request)
+    public async Task<IActionResult> AddAsync([FromBody] AddVehicleRequest request, CancellationToken cancellationToken)
     {
-        var result = _vehiclesService.Add(request);
+        var result = await _vehiclesService.AddAsync(request, cancellationToken);
 
         if (result.IsSuccess)
         {
@@ -33,17 +34,19 @@ public class VehiclesController : ControllerBase
 
     [HttpGet("search")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(object))]
-    public IActionResult Search(
+    public async Task<IActionResult> SearchAsync(
         [FromQuery] VehicleType? vehicleType,
         [FromQuery] string? manufacturer,
         [FromQuery] string? model,
-        [FromQuery] int? year)
+        [FromQuery] int? year,
+        CancellationToken cancellationToken)
     {
-        var result = _vehiclesService.Search(
+        var result = await _vehiclesService.SearchAsync(
             vehicleType,
             manufacturer,
             model,
-            year);
+            year,
+            cancellationToken);
 
         return Ok(result);
     }

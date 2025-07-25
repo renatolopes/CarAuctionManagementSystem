@@ -1,21 +1,15 @@
 namespace CarAuctionManagementSystem.Application.Specifications.Vehicles;
 
+using CarAuctionManagementSystem.Application.Abstractions;
 using CarAuctionManagementSystem.Domain;
-using CarAuctionManagementSystem.Infrastructure.Abstractions;
 
-public class FindVehiclesByMultipleParameters : Specification<Vehicle>
-{
-    public FindVehiclesByMultipleParameters(
+public class FindVehiclesByMultipleParameters(
         VehicleType? vehicleType,
         string? manufacturer,
         string? model,
-        int? year)
-        : base(
+        int? year) : BaseSpecification<Vehicle>(
         x =>
             (vehicleType == null || x.Type == vehicleType) &&
             (manufacturer == null || x.Manufacturer == manufacturer) &&
             (model == null || x.Model == model) &&
-            (year == null || x.Year == year))
-    {
-    }
-}
+            (year == null || x.Year == year));

@@ -4,6 +4,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AutoFixture;
+using CarAuctionManagementSystem.Api.IntegrationTests.Fixtures;
 using CarAuctionManagementSystem.Application.DTOs.Vehicles;
 using CarAuctionManagementSystem.Domain;
 using CarAuctionManagementSystem.Infrastructure.Interfaces;
@@ -12,17 +14,22 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-public class VehiclesControllerTests: IClassFixture<WebApplicationFactory<Program>>
+[Collection(InfrastructureCollection.Name)]
+public class VehiclesControllerTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly CustomWebApplicationFactory _factory;
+    private readonly Fixture _fixture;
+    private readonly DatabaseFixture _databaseFixture;
 
-    public VehiclesControllerTests(WebApplicationFactory<Program> factory)
+    public VehiclesControllerTests(CustomWebApplicationFactory factory, DatabaseFixture databaseFixture)
     {
         _factory = factory;
+        _fixture = new Fixture();
+        _databaseFixture = databaseFixture;
 
         IServiceRepository<Vehicle> vehicleRepository = _factory.Services.GetRequiredService<IServiceRepository<Vehicle>>();
 
-        vehicleRepository.DeleteAll();
+        _databaseFixture.DeleteAllRegisters().Wait();
     }
 
     [Fact]
@@ -43,7 +50,7 @@ public class VehiclesControllerTests: IClassFixture<WebApplicationFactory<Progra
         content!.Manufacturer.Should().Be(request.Manufacturer);
         content!.Model.Should().Be(request.Model);
         content!.Year.Should().Be(request.Year);
-        }
+    }
 
     [Theory]
     [InlineData("Sedan", "manufacturer", "model", 2025, 1)]
@@ -62,21 +69,21 @@ public class VehiclesControllerTests: IClassFixture<WebApplicationFactory<Progra
         string? model,
         int? year,
         int expectedCountResult)
-        {
+    {
         // Arrange
         var client = _factory.CreateClient();
 
         // Act
         var request = Fixtures.AddVehicleFixture.GetAddVehicle();
-        await client.PostAsJsonAsync("api/v1/vehicles", request);
+        _ = await client.PostAsJsonAsync("api/v1/vehicles", request);
 
         var requestUrl = $"api/v1/vehicles/search/?";
         var queryParams = new List<string>();
 
         if (!string.IsNullOrEmpty(vehicleType))
-            {
+        {
             queryParams.Add($"vehicleType={Enum.Parse<VehicleType>(vehicleType)}");
-            }
+        }
 
         if (!string.IsNullOrEmpty(manufacturer))
         {
@@ -95,7 +102,7 @@ public class VehiclesControllerTests: IClassFixture<WebApplicationFactory<Progra
 
         if (queryParams.Count > 0)
         {
-        requestUrl += string.Join("&", queryParams.ToArray());
+            requestUrl += string.Join("&", queryParams.ToArray());
         }
 
         var response = await client.GetAsync(requestUrl);

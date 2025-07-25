@@ -1,25 +1,27 @@
+using CarAuctionManagementSystem.Domain.Abstractions;
+
 namespace CarAuctionManagementSystem.Domain;
 
-public class Vehicle
-{
+public class Vehicle : EntityBase
+    {
     public Vehicle(
         string manufacturer,
         string model,
         int year,
-        VehicleType type, 
+        VehicleType type,
         string licensePlate,
         int? doorsNumber = null,
         int? seatsNumber = null,
         float? loadCapacity = null)
     {
-        DoorsNumber = doorsNumber;
-        SeatsNumber = seatsNumber;
-        LoadCapacity = loadCapacity;
         Manufacturer = manufacturer;
         Model = model;
         Year = year;
         Type = type;
         LicensePlate = licensePlate;
+        DoorsNumber = doorsNumber;
+        SeatsNumber = seatsNumber;
+        LoadCapacity = loadCapacity;
     }
 
     public int? DoorsNumber { get; }

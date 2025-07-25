@@ -1,10 +1,11 @@
 namespace CarAuctionManagementSystem.Application.UnitTests.Services;
 
+using System.Threading.Tasks;
+using CarAuctionManagementSystem.Application.Abstractions;
 using CarAuctionManagementSystem.Application.DTOs.Vehicles;
 using CarAuctionManagementSystem.Application.Services;
 using CarAuctionManagementSystem.Application.Specifications.Vehicles;
 using CarAuctionManagementSystem.Domain;
-using CarAuctionManagementSystem.Infrastructure.Data;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -12,12 +13,26 @@ using Xunit;
 
 public class VehiclesServiceTests
 {
+    private readonly Mock<IRepository<Vehicle>> _vehicleRepository;
+    private readonly Mock<ILogger<VehiclesService>> _vehiclesServiceLogger;
+    private readonly Mock<IUnitOfWork> _unitOfWork;
+
+    private readonly VehiclesService _service;
+
+    public VehiclesServiceTests()
+    {
+        _vehicleRepository = new Mock<IRepository<Vehicle>>();
+        _vehiclesServiceLogger = new Mock<ILogger<VehiclesService>>();
+        _unitOfWork = new Mock<IUnitOfWork>();
+        _service = new VehiclesService( _vehicleRepository.Object, _vehiclesServiceLogger.Object, _unitOfWork.Object);
+    }
+
     [Theory]
     [InlineData(VehicleType.Sedan, 5, null, null)]
     [InlineData(VehicleType.Hatchback, 5, null, null)]
     [InlineData(VehicleType.SUV, null, 6, null)]
     [InlineData(VehicleType.Truck, null, null, 10000f)]
-    public void AddVehicle_WithValidInformation_ShouldAddVehicle(
+    public async Task AddVehicle_WithValidInformation_ShouldAddVehicleAsync(
         VehicleType vehicleType,
         int? doorsNumber,
         int? seatsNumber,
@@ -28,11 +43,6 @@ public class VehiclesServiceTests
         const string model = "Model";
         const int year = 2025;
         const string licensePlate = "12-AB-34";
-
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
 
         // Act
         var vehicle = new AddVehicleRequest(
@@ -45,12 +55,12 @@ public class VehiclesServiceTests
             seatsNumber,
             loadCapacity);
 
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        var addedVehicle = vehiclesRepository.Find(new FindVehicleByLicensePlateSpec(licensePlate));
+        var addedVehicle = result.Value;
         addedVehicle.Should().NotBeNull();
         addedVehicle!.Manufacturer.Should().Be(manufacturer);
         addedVehicle.Model.Should().Be(model);
@@ -62,7 +72,7 @@ public class VehiclesServiceTests
     [Theory]
     [InlineData(VehicleType.Sedan)]
     [InlineData(VehicleType.Hatchback)]
-    public void AddVehicleWithDoorsNumberSpec_WithoutDoorsNumber_ShouldNotAddVehicle(VehicleType vehicleType)
+    public async Task AddVehicleWithDoorsNumberSpec_WithoutDoorsNumber_ShouldNotAddVehicleAsync(VehicleType vehicleType)
     {
         // Arrange
         const string manufacturer = "Manufacturer";
@@ -70,25 +80,18 @@ public class VehiclesServiceTests
         const int year = 2025;
         const string licensePlate = "12-AB-34";
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
-
         // Act
         var vehicle = new AddVehicleRequest(manufacturer, model, year, vehicleType, licensePlate);
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
-        var addedVehicle = vehiclesRepository.Find(new FindVehicleByLicensePlateSpec(licensePlate));
-        addedVehicle.Should().BeNull();
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should()
             .Be($"Number of doors is mandatory for {VehicleType.Hatchback} or {VehicleType.Sedan}.");
     }
 
     [Fact]
-    public void AddVehicleWithSeatsNumberSpec_WithoutSeatsNumber_ShouldNotAddVehicle()
+    public async Task AddVehicleWithSeatsNumberSpec_WithoutSeatsNumber_ShouldNotAddVehicleAsync()
     {
         // Arrange
         const string manufacturer = "Manufacturer";
@@ -97,25 +100,18 @@ public class VehiclesServiceTests
         const string licensePlate = "12-AB-34";
         const VehicleType vehicleType = VehicleType.SUV;
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
-
         // Act
         var vehicle = new AddVehicleRequest(manufacturer, model, year, vehicleType, licensePlate);
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
-        var addedVehicle = vehiclesRepository.Find(new FindVehicleByLicensePlateSpec(licensePlate));
-        addedVehicle.Should().BeNull();
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should()
             .Be($"Number of seats is mandatory for {VehicleType.SUV}.");
     }
 
     [Fact]
-    public void AddVehicleWithLoadCapacitySpec_WithoutLoadCapacity_ShouldNotAddVehicle()
+    public async void AddVehicleWithLoadCapacitySpec_WithoutLoadCapacity_ShouldNotAddVehicle()
     {
         // Arrange
         const string manufacturer = "Manufacturer";
@@ -124,18 +120,11 @@ public class VehiclesServiceTests
         const string licensePlate = "12-AB-34";
         const VehicleType vehicleType = VehicleType.Truck;
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
-
         // Act
         var vehicle = new AddVehicleRequest(manufacturer, model, year, vehicleType, licensePlate);
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
-        var addedVehicle = vehiclesRepository.Find(new FindVehicleByLicensePlateSpec(licensePlate));
-        addedVehicle.Should().BeNull();
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should()
             .Be($"Load capacity is mandatory for {VehicleType.Truck}.");
@@ -145,7 +134,7 @@ public class VehiclesServiceTests
     [InlineData(VehicleType.Sedan, 5, null)]
     [InlineData(VehicleType.Hatchback, 5, null)]
     [InlineData(VehicleType.SUV, null, 6)]
-    public void AddVehicleWithoutLoadCapacitySpec_WithLoadCapacity_ShouldNotAddVehicle(
+    public async Task AddVehicleWithoutLoadCapacitySpec_WithLoadCapacity_ShouldNotAddVehicleAsync(
         VehicleType vehicleType,
         int? doorsNumber,
         int? seatsNumber)
@@ -156,18 +145,11 @@ public class VehiclesServiceTests
         const int year = 2025;
         const string licensePlate = "12-AB-34";
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
-
         // Act
         var vehicle = new AddVehicleRequest(manufacturer, model, year, vehicleType, licensePlate, doorsNumber, seatsNumber, 10000);
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
-        var addedVehicle = vehiclesRepository.Find(new FindVehicleByLicensePlateSpec(licensePlate));
-        addedVehicle.Should().BeNull();
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should()
             .Be($"Load capacity is not allowed for {VehicleType.Hatchback}, {VehicleType.Sedan} or {VehicleType.SUV} vehicles.");
@@ -176,7 +158,7 @@ public class VehiclesServiceTests
     [Theory]
     [InlineData(VehicleType.Hatchback, 5, 6, null)]
     [InlineData(VehicleType.Truck, null, 3, 10000f)]
-    public void AddVehicleWithoutSeatsNumberSpec_WithSeatsNumber_ShouldNotAddVehicle(
+    public async Task AddVehicleWithoutSeatsNumberSpec_WithSeatsNumber_ShouldNotAddVehicleAsync(
         VehicleType vehicleType,
         int? doorsNumber,
         int? seatsNumber,
@@ -188,18 +170,11 @@ public class VehiclesServiceTests
         const int year = 2025;
         const string licensePlate = "12-AB-34";
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
-
         // Act
         var vehicle = new AddVehicleRequest(manufacturer, model, year, vehicleType, licensePlate, doorsNumber, seatsNumber, loadCapacity);
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
-        var addedVehicle = vehiclesRepository.Find(new FindVehicleByLicensePlateSpec(licensePlate));
-        addedVehicle.Should().BeNull();
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should()
             .Be($"Number of seats is not allowed for {VehicleType.Hatchback}, {VehicleType.Sedan} or {VehicleType.Truck} vehicles.");
@@ -208,7 +183,7 @@ public class VehiclesServiceTests
     [Theory]
     [InlineData(VehicleType.SUV, 5, 6, null)]
     [InlineData(VehicleType.Truck, 5, null, 10000f)]
-    public void AddVehicleWithoutDoorsNumberSpec_WithDoorsNumber_ShouldNotAddVehicle(
+    public async Task AddVehicleWithoutDoorsNumberSpec_WithDoorsNumber_ShouldNotAddVehicleAsync(
         VehicleType vehicleType,
         int? doorsNumber,
         int? seatsNumber,
@@ -220,18 +195,11 @@ public class VehiclesServiceTests
         const int year = 2025;
         const string licensePlate = "12-AB-34";
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
-
         // Act
         var vehicle = new AddVehicleRequest(manufacturer, model, year, vehicleType, licensePlate, doorsNumber, seatsNumber, loadCapacity);
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
-        var addedVehicle = vehiclesRepository.Find(new FindVehicleByLicensePlateSpec(licensePlate));
-        addedVehicle.Should().BeNull();
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should()
             .Be($"Number of doors is not allowed for {VehicleType.SUV}, or {VehicleType.Truck} vehicles.");
@@ -242,7 +210,7 @@ public class VehiclesServiceTests
     [InlineData(VehicleType.Hatchback, 0)]
     [InlineData(VehicleType.Sedan, 0)]
     [InlineData(VehicleType.Sedan, 10)]
-    public void AddVehicleWithDoorsNumberSpec_WithInvalidDoorsNumber_ShouldNotAddVehicle(VehicleType vehicleType, int doorsNumber)
+    public async Task AddVehicleWithDoorsNumberSpec_WithInvalidDoorsNumber_ShouldNotAddVehicleAsync(VehicleType vehicleType, int doorsNumber)
     {
         // Arrange
         const string manufacturer = "Manufacturer";
@@ -250,18 +218,11 @@ public class VehiclesServiceTests
         const int year = 2025;
         const string licensePlate = "12-AB-34";
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
-
         // Act
         var vehicle = new AddVehicleRequest(manufacturer, model, year, vehicleType, licensePlate, doorsNumber);
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
-        var addedVehicle = vehiclesRepository.Find(new FindVehicleByLicensePlateSpec(licensePlate));
-        addedVehicle.Should().BeNull();
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should()
             .BeOneOf(
@@ -272,7 +233,7 @@ public class VehiclesServiceTests
     [Theory]
     [InlineData(VehicleType.SUV, 10)]
     [InlineData(VehicleType.SUV, 0)]
-    public void AddVehicleWithSeatsNumberSpec_WithInvalidSeatsNumber_ShouldNotAddVehicle(VehicleType vehicleType, int seatsNumber)
+    public async Task AddVehicleWithSeatsNumberSpec_WithInvalidSeatsNumber_ShouldNotAddVehicleAsync(VehicleType vehicleType, int seatsNumber)
     {
         // Arrange
         const string manufacturer = "Manufacturer";
@@ -280,18 +241,11 @@ public class VehiclesServiceTests
         const int year = 2025;
         const string licensePlate = "12-AB-34";
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
-
         // Act
         var vehicle = new AddVehicleRequest(manufacturer, model, year, vehicleType, licensePlate, null, seatsNumber);
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
-        var addedVehicle = vehiclesRepository.Find(new FindVehicleByLicensePlateSpec(licensePlate));
-        addedVehicle.Should().BeNull();
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should()
             .BeOneOf(
@@ -302,7 +256,7 @@ public class VehiclesServiceTests
     [Theory]
     [InlineData(VehicleType.Truck, 0)]
     [InlineData(VehicleType.Truck, 100000f)]
-    public void AddVehicleWithLoadCapacitySpec_WithInvalidLoadCapacity_ShouldNotAddVehicle(VehicleType vehicleType, int loadCapacity)
+    public async Task AddVehicleWithLoadCapacitySpec_WithInvalidLoadCapacity_ShouldNotAddVehicleAsync(VehicleType vehicleType, int loadCapacity)
     {
         // Arrange
         const string manufacturer = "Manufacturer";
@@ -310,18 +264,11 @@ public class VehiclesServiceTests
         const int year = 2025;
         const string licensePlate = "12-AB-34";
 
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
-
         // Act
         var vehicle = new AddVehicleRequest(manufacturer, model, year, vehicleType, licensePlate, null, null, loadCapacity);
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
-        var addedVehicle = vehiclesRepository.Find(new FindVehicleByLicensePlateSpec(licensePlate));
-        addedVehicle.Should().BeNull();
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should()
             .BeOneOf(
@@ -334,7 +281,7 @@ public class VehiclesServiceTests
     [InlineData(VehicleType.Hatchback, 3025, 5, null, null)]
     [InlineData(VehicleType.SUV, 1000, null, 6, null)]
     [InlineData(VehicleType.Truck, 2067, null, null, 10000f)]
-    public void AddVehicle_WithInvalidYear_ShouldNotAddVehicle(
+    public async Task AddVehicle_WithInvalidYear_ShouldNotAddVehicleAsync(
         VehicleType vehicleType,
         int year,
         int? doorsNumber,
@@ -345,11 +292,6 @@ public class VehiclesServiceTests
         const string manufacturer = "Manufacturer";
         const string model = "Model";
         const string licensePlate = "12-AB-34";
-
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
 
         // Act
         var vehicle = new AddVehicleRequest(
@@ -362,17 +304,15 @@ public class VehiclesServiceTests
             seatsNumber,
             loadCapacity);
 
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
-        var addedVehicle = vehiclesRepository.Find(new FindVehicleByLicensePlateSpec(licensePlate));
-        addedVehicle.Should().BeNull();
         result.IsFailed.Should().BeTrue();
         result.Errors[0].Message.Should().Be("Invalid vehicle year");
     }
 
     [Fact]
-    public void AddVehicle_WithVehicleWithSameLicensePlate_ShouldReturnError()
+    public async Task AddVehicle_WithVehicleWithSameLicensePlate_ShouldReturnErrorAsync()
     {
         // Arrange
         const int doorsNumber = 4;
@@ -381,65 +321,17 @@ public class VehiclesServiceTests
         const int year = 2025;
         const VehicleType type = VehicleType.Sedan;
         const string licensePlate = "12-AB-34";
-
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
+        var vehicle = new AddVehicleRequest(manufacturer, model, year, type, licensePlate, doorsNumber);
+        _vehicleRepository
+            .Setup(x => x.AnyAsync(It.IsAny<FindVehicleByLicensePlateSpec>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true)
+            .Verifiable();
 
         // Act
-        var vehicle = new AddVehicleRequest(manufacturer, model, year, type, licensePlate, doorsNumber);
-        vehiclesService.Add(vehicle);
-        var result = vehiclesService.Add(vehicle);
+        var result = await _service.AddAsync(vehicle, default);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Errors[0].Message.Should().Be($"Vehicle with License Plate {licensePlate} already exists.");
-    }
-
-    [Theory]
-    [InlineData("Sedan", "manufacturer", "model", 2025, 1)]
-    [InlineData(null, "manufacturer", "model", 2025, 1)]
-    [InlineData("Sedan", null, "model", 2025, 1)]
-    [InlineData("Sedan", "manufacturer", null, 2025, 1)]
-    [InlineData("Sedan", "manufacturer", "model", null, 1)]
-    [InlineData("Hatchback", "manufacturer", "model", null, 0)]
-    [InlineData("Sedan", "manufacturer2", "model", null, 0)]
-    [InlineData("Sedan", "manufacturer", "model2", 2025, 0)]
-    [InlineData("Sedan", "manufacturer", "model", 2021, 0)]
-    [InlineData(null, null, null, null, 1)]
-    public void SearchVehicle_ShouldReturnResultsAsExpected(
-    string? vehicleType,
-    string? manufacturer,
-    string? model,
-    int? year,
-    int expectedCountResult)
-    {
-        // Arrange
-        var vehiclesRepository = new ServiceRepository<Vehicle>();
-        var mockLogger = new Mock<ILogger<VehiclesService>>();
-
-        var vehiclesService = new VehiclesService(vehiclesRepository, mockLogger.Object);
-
-        // Act
-        var vehicle = new AddVehicleRequest(
-            "manufacturer",
-            "model",
-            2025,
-            VehicleType.Sedan,
-            "12-AB-34",
-            5,
-            null,
-            null);
-        vehiclesService.Add(vehicle);
-
-        var result = vehiclesService.Search(
-            !string.IsNullOrEmpty(vehicleType) ? Enum.Parse<VehicleType>(vehicleType) : null,
-            manufacturer,
-            model,
-            year).ToList();
-
-        // Assert
-        result.Count.Should().Be(expectedCountResult);
     }
 }

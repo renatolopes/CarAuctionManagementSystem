@@ -5,7 +5,7 @@ using CarAuctionManagementSystem.Infrastructure.Data;
 using CarAuctionManagementSystem.Infrastructure.Interfaces;
 
 [ExcludeFromCodeCoverage]
-public static class AddRepositoryExtension
+public static class RepositoryExtensions
 {
     public static void AddRepositories(this IServiceCollection serviceCollection)
     {

@@ -6,11 +6,12 @@ using FluentResults;
 
 public interface IVehiclesService
 {
-    public Result<AvailableVehicle> Add(AddVehicleRequest vehicle);
+    public Task<Result<AvailableVehicle>> AddAsync(AddVehicleRequest vehicle, CancellationToken cancellationToken);
 
-    public IEnumerable<AvailableVehicle> Search(
+    public Task<IEnumerable<AvailableVehicle>> SearchAsync(
         VehicleType? vehicleType,
         string? manufacturer,
         string? model,
-        int? year);
+        int? year
+        , CancellationToken cancellationToken);
 }

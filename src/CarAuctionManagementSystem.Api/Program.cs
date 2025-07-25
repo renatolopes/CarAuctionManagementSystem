@@ -4,8 +4,6 @@ using System.Text.Json.Serialization;
 using CarAuctionManagementSystem.Api.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
-
-
 builder.Services.AddRepositories();
 builder.Services.AddServices();
 
@@ -18,10 +16,12 @@ builder.Services.AddControllers()
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddPersistenceServices(builder.Configuration);
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
+app.ApplyMigrations(app.Configuration);
 app.UseHttpsRedirection();
 app.UseAuthorization();
 

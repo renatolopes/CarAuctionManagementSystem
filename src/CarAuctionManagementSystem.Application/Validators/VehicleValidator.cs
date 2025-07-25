@@ -9,7 +9,7 @@ public class VehicleValidator : AbstractValidator<AddVehicleRequest>
     public VehicleValidator()
     {
         RuleFor(x => x.Year)
-            .Must(x => x >= 1886 && x <= DateTime.Now.Year) // Date of construction of the first modern vehicle Benz Patent-Motorwagen
+            .Must(x => x >= 1886 && x <= DateTime.UtcNow.Year) // Date of construction of the first modern vehicle Benz Patent-Motorwagen
             .WithMessage("Invalid vehicle year");
 
         RuleFor(x => x.DoorsNumber)

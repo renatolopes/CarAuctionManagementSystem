@@ -5,7 +5,7 @@ using CarAuctionManagementSystem.Application.Services;
 namespace CarAuctionManagementSystem.Api.Extensions;
 
 [ExcludeFromCodeCoverage]
-public static class AddServicesExtension
+public static class ServicesExtensions
 {
     public static void AddServices(this IServiceCollection serviceCollection)
     {
